@@ -17,6 +17,15 @@ const serveGrip = new ServeGrip({
 app.use(serveGrip);
 
 // Websocket-over-HTTP is translated to HTTP POST
+
+app.get('/', (_, res) => {
+  res.send('hi there!');
+});
+
+app.get('/healthcheck', (_, res) => {
+  res.send('hi there! checking health!');
+});
+
 app.post(
   '/api/websocket',
   async (req: express.Request & { grip: IRequestGrip }, res) => {
