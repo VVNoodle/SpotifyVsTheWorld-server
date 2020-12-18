@@ -2,4 +2,16 @@ branch-defaults:
   default:
     environment: SpotifyVsTheWorldServer-env
 global:
+  application_name: spotify-vs-the-world-server
+  branch: main
+  default_ec2_keyname: null
+  default_platform: Node.js 12 running on 64bit Amazon Linux 2
+  default_region: us-west-2
+  include_git_submodules: true
+  instance_profile: null
+  platform_name: null
+  platform_version: null
   profile: null
+  repository: spotifyvstheworld-server-test
+  sc: git
+  workspace_type: Application
