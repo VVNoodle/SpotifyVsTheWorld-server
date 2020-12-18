@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Example for using serve-grip with WebSockets-over-HTTP in Express",
-  "engines" : { "node" : ">=12.0.0" },
+  "engines" : { "node" : "v12.9.1" },
   "engineStrict": true,
   "scripts": {
     "dev": "nodemon",
