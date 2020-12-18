@@ -1,9 +1,9 @@
-import * as express from "express";
-import { IRequestGrip, ServeGrip } from "@fanoutio/serve-grip";
-import { WebSocketMessageFormat } from "@fanoutio/grip";
+import * as express from 'express';
+import { IRequestGrip, ServeGrip } from '@fanoutio/serve-grip';
+import { WebSocketMessageFormat } from '@fanoutio/grip';
 
 const PORT = 3000;
-const CHANNEL_NAME = "test";
+const CHANNEL_NAME = 'test';
 
 const app = express();
 
@@ -19,12 +19,12 @@ app.use(serveGrip);
 
 // Websocket-over-HTTP is translated to HTTP POST
 app.post(
-  "/api/websocket",
+  '/api/websocket',
   async (req: express.Request & { grip: IRequestGrip }, res) => {
     const { wsContext } = req.grip;
     if (wsContext == null) {
       res.statusCode = 400;
-      res.end("[not a websocket request]\n");
+      res.end('[not a websocket request]\n');
       return;
     }
 
@@ -48,18 +48,18 @@ app.post(
     }
 
     res.end();
-  }
+  },
 );
 
-app.post("/api/broadcast", express.text({ type: "*/*" }), async (req, res) => {
+app.post('/api/broadcast', express.text({ type: '*/*' }), async (req, res) => {
   const publisher = serveGrip.getPublisher();
   await publisher.publishFormats(
     CHANNEL_NAME,
-    new WebSocketMessageFormat(req.body)
+    new WebSocketMessageFormat(req.body),
   );
 
-  res.setHeader("Content-Type", "text/plain");
-  res.end("Ok\n");
+  res.setHeader('Content-Type', 'text/plain');
+  res.end('Ok\n');
 });
 
 app.listen(PORT, () => console.log(`Example app listening on port ${PORT}!`));
