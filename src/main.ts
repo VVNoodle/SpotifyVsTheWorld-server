@@ -61,6 +61,6 @@ app.post('/api/broadcast', express.text({ type: '*/*' }), async (req, res) => {
   res.end('Ok\n');
 });
 
-app.listen(PORT, () => console.log(`Example app listening on port ${PORT}!`));
-
-console.log(process.env.GRIP_URL);
+app.listen(process.env.PORT, () =>
+  console.log(`Example app listening on port ${process.env.PORT}!`),
+);
