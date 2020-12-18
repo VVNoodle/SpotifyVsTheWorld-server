@@ -2,7 +2,6 @@ import * as express from 'express';
 import { IRequestGrip, ServeGrip } from '@fanoutio/serve-grip';
 import { WebSocketMessageFormat } from '@fanoutio/grip';
 
-const PORT = 3000;
 const CHANNEL_NAME = 'test';
 
 const app = express();
@@ -63,3 +62,5 @@ app.post('/api/broadcast', express.text({ type: '*/*' }), async (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`Example app listening on port ${PORT}!`));
+
+console.log(process.env.GRIP_URL);

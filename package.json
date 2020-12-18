@@ -12,6 +12,7 @@
     "start": "node build/src/main.js",
     "clean": "rimraf coverage build tmp",
     "build": "tsc -p tsconfig.release.json",
+    "dev": "nodemon",
     "build:watch": "tsc -w -p tsconfig.release.json",
     "lint": "eslint . --ext .ts",
     "test": "jest --coverage",
@@ -24,6 +25,7 @@
     "@fanoutio/serve-grip": "1.1.7-beta.2",
     "dotenv": "8.2.0",
     "express": "4.17.1",
+    "nodemon": "^2.0.6",
     "ts-node": "9.1.1"
   },
   "devDependencies": {
