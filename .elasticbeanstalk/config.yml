@@ -1,10 +1,15 @@
 branch-defaults:
-  default:
-    environment: SpotifyVsTheWorldServer-env
+  main:
+    environment: spotifyvstheworld-server-dev
+    group_suffix: null
+environment-defaults:
+  spotifyvstheworld-server-dev:
+    branch: main
+    repository: beanstalk-test
 global:
-  application_name: spotify-vs-the-world-server
+  application_name: spotifyvstheworld-server
   branch: main
-  default_ec2_keyname: null
+  default_ec2_keyname: aws-eb
   default_platform: Node.js 12 running on 64bit Amazon Linux 2
   default_region: us-west-2
   include_git_submodules: true
@@ -12,6 +17,6 @@ global:
   platform_name: null
   platform_version: null
   profile: null
-  repository: spotifyvstheworld-server-test
+  repository: beanstalk-test
   sc: git
   workspace_type: Application

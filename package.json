@@ -7,7 +7,7 @@
   "engineStrict": true,
   "scripts": {
     "dev": "nodemon",
-    "prod": "ts-node --files ./src/server.ts"
+    "prod": "ts-node --files ./server.ts"
   },
   "author": "Egan Bisma <cendoloverboba@gmail.com>",
   "license": "MIT",
