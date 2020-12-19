@@ -8,12 +8,11 @@
   },
   "engineStrict": true,
   "scripts": {
-    "prestart": "npm run build",
-    "start": "node build/src/main.js",
+    "start": "node src/main.js",
     "clean": "rimraf coverage build tmp",
     "build": "tsc -p tsconfig.release.json",
-    "dev": "nodemon",
     "build:watch": "tsc -w -p tsconfig.release.json",
+    "dev": "nodemon",
     "lint": "eslint . --ext .ts",
     "test": "jest --coverage",
     "test:watch": "jest --watch"
