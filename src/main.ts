@@ -1,94 +1,75 @@
-import * as http from 'http';
-import {
-  validateSig,
-  decodeWebSocketEvents,
-  encodeWebSocketEvents,
-  WebSocketContext,
-  WebSocketMessageFormat,
-  Publisher,
-} from '@fanoutio/grip';
+import * as express from 'express';
+import { IRequestGrip, ServeGrip } from '@fanoutio/serve-grip';
+import { WebSocketMessageFormat } from '@fanoutio/grip';
 
-try {
-  http
-    .createServer(async (req, res) => {
-      try {
-        // Validate the Grip-Sig header:
-        if (
-          !validateSig(req.headers['grip-sig'] as string, process.env.REALM_KEY)
-        ) {
-          res.writeHead(401);
-          res.end('invalid grip-sig token');
-          return;
-        }
+const CHANNEL_NAME = 'test';
 
-        // Make sure we have a connection ID
-        let cid = req.headers['connection-id'];
-        if (Array.isArray(cid)) {
-          cid = cid[0];
-        }
-        if (req.headers['connection-id'] == null) {
-          res.writeHead(401);
-          res.end('connection-id required');
-          return;
-        }
+const app = express();
 
-        const inEventsEncoded = await new Promise((resolve) => {
-          let body = '';
-          req.on('data', function (chunk) {
-            body += chunk;
-          });
-          req.on('end', function () {
-            resolve(body);
-          });
-        });
+const serveGrip = new ServeGrip({
+  grip: {
+    control_uri: process.env.GRIP_URL,
+    control_iss: process.env.REALM_ID,
+    key: process.env.REALM_KEY,
+  },
+});
 
-        const inEvents = decodeWebSocketEvents(
-          inEventsEncoded as string | Buffer,
-        );
-        const wsContext = new WebSocketContext(cid, {}, inEvents);
+app.use(serveGrip);
 
-        if (wsContext.isOpening()) {
-          // Open the WebSocket and subscribe it to a channel:
-          wsContext.accept();
-          wsContext.subscribe('test');
+// Websocket-over-HTTP is translated to HTTP POST
 
-          // The above commands made to the wsContext are buffered
-          // in the wsContext as "outgoing events".
-          // Obtain them and write them to the response.
-          const outEvents = wsContext.getOutgoingEvents();
-          const outEventsEncoded = encodeWebSocketEvents(outEvents);
-          res.write(outEventsEncoded);
+app.get('/', (_, res) => {
+  res.send('hi there!');
+});
 
-          // As an example way to check our subscription, wait and then
-          // publish a message to the subscribed channel:
-          setTimeout(() => {
-            const publisher = new Publisher({
-              control_uri: process.env.GRIP_URL,
-              control_iss: process.env.REALM_ID,
-              key: Buffer.from(process.env.REALM_KEY, 'base64'),
-            });
-            publisher.publishFormats(
-              'test',
-              new WebSocketMessageFormat('Test WebSocket Publish!!'),
-            );
-          }, 5000);
-        }
+app.get('/healthcheck', (_, res) => {
+  res.send('hi there! checking health!');
+});
 
-        // Set the headers required by the GRIP proxy:
-        res.writeHead(200, wsContext.toHeaders());
-      } catch (error) {
-        console.log('oops, theres error:', error);
+app.post(
+  '/api/websocket',
+  async (req: express.Request & { grip: IRequestGrip }, res) => {
+    const { wsContext } = req.grip;
+    if (wsContext == null) {
+      res.statusCode = 400;
+      res.end('[not a websocket request]\n');
+      return;
+    }
+
+    // If this is a new connection, accept it and subscribe it to a channel
+    if (wsContext.isOpening()) {
+      wsContext.accept();
+      wsContext.subscribe(CHANNEL_NAME);
+    }
+
+    while (wsContext.canRecv()) {
+      const message = wsContext.recv();
+
+      if (message == null) {
+        // If return value is undefined then connection is closed
+        wsContext.close();
+        break;
       }
-      res.end();
-    })
-    .listen(parseInt(process.env.PORT), '0.0.0.0');
-  console.log('Server running...');
-} catch (error) {
-  console.log('Server NOT running...');
-  console.log('ERROR', error);
-  try {
-    console.log('ERROR', error.message);
-  } catch (err) {
-    console.log('foo no', err);
-  }
-}
+
+      // Echo the message
+      wsContext.send(message);
+    }
+
+    res.end();
+  },
+);
+
+app.post('/api/broadcast', express.text({ type: '*/*' }), async (req, res) => {
+  const publisher = serveGrip.getPublisher();
+  await publisher.publishFormats(
+    CHANNEL_NAME,
+    new WebSocketMessageFormat(req.body),
+  );
+
+  res.setHeader('Content-Type', 'text/plain');
+  res.end('Ok\n');
+});
+
+app.listen(process.env.PORT, () =>
+  console.log(`Example app listening on port ${process.env.PORT}!`),
+);
