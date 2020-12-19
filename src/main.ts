@@ -11,7 +11,9 @@ import {
 http
   .createServer(async (req, res) => {
     // Validate the Grip-Sig header:
-    if (!validateSig(req.headers['grip-sig'] as string, 'changeme')) {
+    if (
+      !validateSig(req.headers['grip-sig'] as string, process.env.REALM_KEY)
+    ) {
       res.writeHead(401);
       res.end('invalid grip-sig token');
       return;
