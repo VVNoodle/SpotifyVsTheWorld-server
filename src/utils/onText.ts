@@ -1,4 +1,4 @@
-import * as uWS from 'uWebSockets.js';
+// import * as uWS from 'uWebSockets.js';
 import {
   // encodeWebSocketEvents,
   Publisher,
@@ -13,7 +13,7 @@ import { Redis } from 'ioredis';
  * @param content message sent from client. Expected to be in the following format: 'previousArtistName,currentArtistName'
  */
 export const onText = async (
-  res: uWS.HttpResponse,
+  // res: uWS.HttpResponse,
   redis: Redis,
   pub: Publisher,
   wsContext: WebSocketContext,

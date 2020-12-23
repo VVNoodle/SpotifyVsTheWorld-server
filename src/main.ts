@@ -112,7 +112,7 @@ uWS
         await onDisconnect(redis, pub, wsContext);
       } else if (type === 'TEXT') {
         if (content) {
-          await onText(res, redis, pub, wsContext, content);
+          await onText(redis, pub, wsContext, content);
         }
       }
     }
