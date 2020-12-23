@@ -43,10 +43,10 @@ const onAbortedOrFinishedResponse = (res: uWS.HttpResponse) => {
 
 uWS
   .App()
-  .post('/', async (res) => {
+  .get('/', async (res) => {
     res.end('server still running');
   })
-  .post('/', async (res) => {
+  .get('/healthcheck', async (res) => {
     res.end('healthcheck: server still running');
   })
   .post('/api/websocket', async (res, req: CustomRequest) => {
