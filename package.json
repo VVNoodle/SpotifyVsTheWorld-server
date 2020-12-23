@@ -31,6 +31,7 @@
     "grip": "^1.6.0",
     "ioredis": "^4.19.4",
     "nodemon": "^2.0.6",
+    "ts-lib": "^0.0.5",
     "ts-node": "9.1.1",
     "typescript": "4.0.5",
     "uWebSockets.js": "uNetworking/uWebSockets.js#v18.11.0"
