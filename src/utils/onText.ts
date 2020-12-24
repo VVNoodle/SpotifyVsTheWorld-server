@@ -27,7 +27,7 @@ export const onText = async (
   }
 
   try {
-    const [previousArtist, currentArtist] = contentString.split(',');
+    const [previousArtist, currentArtist] = contentString.split('||');
 
     // set client's latest artist. Useful to update count when client gets disconnected
     await redis.hset('client', wsContext.id, currentArtist);
