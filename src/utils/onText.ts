@@ -21,7 +21,7 @@ export const onText = async (
 ): Promise<void> => {
   const contentString = content.toString();
   console.log('content', contentString);
-  if (!contentString.includes(',')) {
+  if (!contentString.includes('||')) {
     console.log('bad content!');
     return;
   }
