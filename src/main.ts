@@ -13,10 +13,8 @@ import { onDisconnect } from './utils/onDisconnect';
 import { onText } from './utils/onText';
 
 const redis = new Redis({
-  password: process.env.REDIS_PASSWORD,
   host: process.env.REDIS_HOST,
   port: parseInt(process.env.REDIS_PORT),
-  username: 'default',
 });
 const config = parseGripUri(process.env.GRIP_URL);
 const serveGrip = new ServeGrip({
