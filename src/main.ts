@@ -112,6 +112,9 @@ uWS
         if (content) {
           await onText(redis, pub, wsContext, content);
         }
+      } else if (type === 'CLOSE') {
+        console.log('client disconnects on purpose');
+        await onDisconnect(redis, pub, wsContext);
       }
     }
 
