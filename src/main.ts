@@ -28,7 +28,11 @@ const jobName = 'publisherJob';
 const publishQueue = new Queue(jobName, {
   connection: redis,
 });
-const processorFile = path.join(__dirname, 'workers', 'publishMessages.ts');
+const processorFile = path.join(
+  __dirname,
+  'workers',
+  process.env.PUBLISH_MESSAGE_FILENAME,
+);
 new Worker(jobName, processorFile, {
   limiter: {
     max: 10,
