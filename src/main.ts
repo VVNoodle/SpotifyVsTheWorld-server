@@ -44,6 +44,10 @@ fastify.get('/', function (_, reply) {
   reply.send({ hello: 'world' });
 });
 
+fastify.get('/healthcheck', function (_, reply) {
+  reply.send('ok');
+});
+
 fastify.get('/unsub', async function (request, reply) {
   const lastArtist = request.headers['x-channel-id'] as string;
   console.log(`client unsubbed. decrementing count of artist ${lastArtist}`);
