@@ -1,32 +1,28 @@
-import * as uWS from 'uWebSockets.js';
-import * as IORedis from 'ioredis';
-import { Request } from 'express';
-import { IRequestGrip, ServeGrip } from '@fanoutio/serve-grip';
-import {
-  decodeWebSocketEvents,
-  encodeWebSocketEvents,
-  WebSocketContext,
-} from '@fanoutio/grip';
+import fastifyInit from 'fastify';
 import { Queue, QueueScheduler, Worker } from 'bullmq';
-import { readData } from './utils/readData';
-import { onDisconnect } from './utils/onDisconnect';
-import { onText } from './utils/onText';
 import * as path from 'path';
 
-const redis = new IORedis({
+const config: { [key: string]: string | boolean } = {
+  logger: false,
+};
+if (process.env.LOGGER === 'yes') {
+  config.logger = true;
+}
+if (process.env.HTTP2 === 'yes') {
+  config.http2 = true;
+}
+
+const fastify = fastifyInit(config);
+
+const redisConfig = {
   host: process.env.REDIS_HOST,
   port: parseInt(process.env.REDIS_PORT),
-});
-const serveGrip = new ServeGrip({
-  grip: {
-    control_uri: 'http://127.0.0.1:5561',
-    key: 'changeme',
-  },
-});
+  password: process.env.REDIS_PASSWORD,
+};
 
 const jobName = 'publisherJob';
 const publishQueue = new Queue(jobName, {
-  connection: redis,
+  connection: redisConfig,
 });
 const processorFile = path.join(
   __dirname,
@@ -38,128 +34,41 @@ new Worker(jobName, processorFile, {
     max: 10,
     duration: 1000,
   },
+  connection: redisConfig,
 });
-new QueueScheduler(jobName);
+new QueueScheduler(jobName, {
+  connection: redisConfig,
+});
 
-interface CustomRequest extends uWS.HttpRequest, Request {
-  grip: IRequestGrip;
-}
+fastify.get('/', function (_, reply) {
+  reply.send({ hello: 'world' });
+});
 
-const onAbortedOrFinishedResponse = (res: uWS.HttpResponse) => {
-  if (res.id == -1) {
-    console.log(
-      'ERROR! onAbortedOrFinishedResponse called twice for the same res!',
-    );
-  } else {
-    console.log('Stream was closed');
-    console.timeEnd(res.id);
+fastify.get('/unsub', async function (request, reply) {
+  const lastArtist = request.headers['x-channel-id'] as string;
+  console.log(`client unsubbed. decrementing count of artist ${lastArtist}`);
+  try {
+    await publishQueue.add(lastArtist, lastArtist, {
+      delay: 2000,
+    });
+  } catch (error) {
+    console.log('error', error);
   }
+  reply.status(200).send('done');
+});
 
-  /* Mark this response already accounted for */
-  res.id = -1;
+const start = async () => {
+  try {
+    console.log('Listening to fastly server!');
+    console.log('envvars:::');
+    console.log(process.env.REDIS_HOST);
+    console.log(process.env.REDIS_PASSWORD);
+    console.log(process.env.REDIS_PORT);
+    console.log(process.env.HTTP2);
+    await fastify.listen(process.env.PORT);
+  } catch (err) {
+    fastify.log.error(err);
+    process.exit(1);
+  }
 };
-
-uWS
-  .App()
-  .get('/', async (res) => {
-    res.end('server still running');
-  })
-  .get('/healthcheck', async (res) => {
-    res.end('healthcheck: server still running');
-  })
-  .post('/api/websocket', async (res, req: CustomRequest) => {
-    req.headers = {};
-    req.forEach((header, value) => {
-      req.headers[header] = value;
-    });
-    req.method = 'POST';
-
-    res.onAborted(() => {
-      onAbortedOrFinishedResponse(res);
-    });
-
-    let data: string;
-    try {
-      data = await readData(res);
-    } catch (error) {
-      console.log('error!', error);
-      res.end();
-    }
-    req.body = data;
-
-    // Make sure we have a connection ID
-    let cid = req.headers['connection-id'];
-    if (Array.isArray(cid)) {
-      cid = cid[0];
-    }
-    if (req.headers['connection-id'] == null) {
-      res.writeHead(401);
-      res.end('connection-id required');
-      return;
-    }
-
-    const inEvents = decodeWebSocketEvents(data);
-    const wsContext = new WebSocketContext(cid, {}, inEvents);
-
-    // If this is a new connection, accept it
-    if (wsContext.isOpening()) {
-      try {
-        wsContext.accept();
-      } catch (error) {
-        console.log('error', error);
-        console.log(error.message);
-      }
-    }
-
-    const pub = serveGrip.getPublisher();
-
-    const body: (string | void)[] = [];
-    for (let i = 0; i < wsContext.inEvents.length; i++) {
-      const { type, content } = wsContext.inEvents[i];
-
-      console.log('type', type);
-      if (type === 'OPEN') {
-        console.log(`client with id ${wsContext.id} has connected`);
-      } else if (type === 'DISCONNECT') {
-        await onDisconnect(redis, pub, wsContext);
-      } else if (type === 'TEXT' && content) {
-        body.push(await onText(res, redis, pub, wsContext, content));
-      } else if (type === 'CLOSE') {
-        console.log('client disconnects on purpose');
-        await onDisconnect(redis, pub, wsContext);
-      }
-    }
-
-    res.cork(async () => {
-      res = writeHeaders(res, wsContext);
-      res
-        .writeStatus('200 OK')
-        .end(encodeWebSocketEvents(wsContext.getOutgoingEvents()));
-
-      if (!body) {
-        return;
-      }
-      const addAsyncJobs = body.map(async (stuff) => {
-        if (typeof stuff === 'string' && stuff.length) {
-          await publishQueue.add(stuff, stuff, {
-            delay: 5000,
-          });
-        }
-      });
-      await Promise.all(addAsyncJobs);
-    });
-  })
-  .listen(parseInt(process.env.PORT), (listenSocket) => {
-    if (listenSocket) {
-      console.log(`Listening to port ${process.env.PORT}`);
-    }
-  });
-
-function writeHeaders(res: uWS.HttpResponse, wsContext: WebSocketContext) {
-  const headers = wsContext.toHeaders();
-  console.log(headers);
-  Object.keys(headers).forEach((key) => {
-    res.writeHeader(key, headers[key]);
-  });
-  return res;
-}
+start();

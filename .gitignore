@@ -120,7 +120,8 @@ dist
 # !.elasticbeanstalk/*.cfg.yml
 # !.elasticbeanstalk/*.global.yml
 
-build/
+build/*
+build/src
 
 # Elastic Beanstalk Files
 .elasticbeanstalk/*
