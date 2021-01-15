@@ -1,6 +1,6 @@
 import fastifyInit from 'fastify';
-import { Queue, QueueScheduler, Worker } from 'bullmq';
-import * as path from 'path';
+import fastifyRateLimit from 'fastify-rate-limit';
+import IORedis from 'ioredis';
 
 const config: { [key: string]: string | boolean } = {
   logger: false,
@@ -14,30 +14,14 @@ if (process.env.HTTP2 === 'yes') {
 
 const fastify = fastifyInit(config);
 
-const redisConfig = {
+fastify.register(fastifyRateLimit, {
+  max: 100,
+  timeWindow: '1 minute',
+});
+
+const redis = new IORedis({
   host: process.env.REDIS_HOST,
   port: parseInt(process.env.REDIS_PORT),
-  password: process.env.REDIS_PASSWORD,
-};
-
-const jobName = 'publisherJob';
-const publishQueue = new Queue(jobName, {
-  connection: redisConfig,
-});
-const processorFile = path.join(
-  __dirname,
-  'workers',
-  process.env.PUBLISH_MESSAGE_FILENAME,
-);
-new Worker(jobName, processorFile, {
-  limiter: {
-    max: 10,
-    duration: 1000,
-  },
-  connection: redisConfig,
-});
-new QueueScheduler(jobName, {
-  connection: redisConfig,
 });
 
 fastify.get('/', function (_, reply) {
@@ -48,13 +32,17 @@ fastify.get('/healthcheck', function (_, reply) {
   reply.send('ok');
 });
 
+fastify.get('/leaderboard_hour', async function (_, reply) {
+  const leaderboard = await redis.zscan('leaderboard_hour', 0, -1);
+  console.log('leaderboard', leaderboard);
+  reply.send(leaderboard);
+});
+
 fastify.get('/unsub', async function (request, reply) {
   const lastArtist = request.headers['x-channel-id'] as string;
   console.log(`client unsubbed. decrementing count of artist ${lastArtist}`);
   try {
-    await publishQueue.add(lastArtist, lastArtist, {
-      delay: 2000,
-    });
+    await unsub(lastArtist);
   } catch (error) {
     console.log('error', error);
   }
@@ -63,12 +51,7 @@ fastify.get('/unsub', async function (request, reply) {
 
 const start = async () => {
   try {
-    console.log('Listening to fastly server!');
-    console.log('envvars:::');
-    console.log(process.env.REDIS_HOST);
-    console.log(process.env.REDIS_PASSWORD);
-    console.log(process.env.REDIS_PORT);
-    console.log(process.env.HTTP2);
+    console.log(`Listening to fastly server in port ${process.env.PORT}`);
     await fastify.listen(process.env.PORT);
   } catch (err) {
     fastify.log.error(err);
@@ -76,3 +59,35 @@ const start = async () => {
   }
 };
 start();
+
+async function unsub(artistName: string) {
+  try {
+    const listenerCountResponse = await fetch(
+      `https://${process.env.NCHAN_URL}/pub/${artistName}`,
+      {
+        method: 'GET',
+        headers: {
+          Accept: 'text/json',
+        },
+      },
+    );
+    const count = await listenerCountResponse.json();
+    console.log('count=', count);
+    try {
+      console.log(count.subscribers);
+    } catch (error) {
+      console.log('err', error);
+    }
+
+    const response = await fetch(
+      `https://${process.env.NCHAN_URL}/pub/${artistName}`,
+      {
+        method: 'POST',
+        body: `c=${count.subscribers}`,
+      },
+    );
+    await response.text();
+  } catch (error) {
+    console.log('error is', error);
+  }
+}
