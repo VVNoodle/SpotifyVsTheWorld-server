@@ -1,13 +1,18 @@
 import IORedis from 'ioredis';
 import fetch from 'node-fetch';
 import { COUNT } from '../constants';
+import { prefixChannelName } from './prefixChannelName';
 
 async function unsub(
   redis: IORedis.Redis,
   artistName: string,
 ): Promise<string> {
   try {
-    const listenerCount = await redis.hincrby(artistName, COUNT, -1);
+    const listenerCount = await redis.hincrby(
+      prefixChannelName(artistName),
+      COUNT,
+      -1,
+    );
     const listenerCountResponse = `c=${listenerCount}`;
     console.log(`unsub value: ${listenerCountResponse}`);
     const response = await fetch(

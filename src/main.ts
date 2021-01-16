@@ -1,7 +1,7 @@
 import fastifyInit from 'fastify';
 import fastifyRateLimit from 'fastify-rate-limit';
 import IORedis from 'ioredis';
-import { ARTIST_COUNT_HASH } from './constants';
+import { prefixChannelName } from './utils/prefixChannelName';
 import { pub } from './utils/pub';
 import { unsub } from './utils/unsub';
 
@@ -46,7 +46,7 @@ fastify.get('/unsub', async function (request) {
   const lastArtist = request.headers['x-channel-id'] as string;
   console.log(`client unsubbed. decrementing count of artist ${lastArtist}`);
   try {
-    await unsub(redis, prefixChannelName(lastArtist));
+    await unsub(redis, lastArtist);
   } catch (error) {
     console.log('error', error);
   }
@@ -71,7 +71,3 @@ const start = async () => {
 };
 
 start();
-
-function prefixChannelName(artistName: string): string {
-  return `${ARTIST_COUNT_HASH}:${artistName}`;
-}
