@@ -45,7 +45,7 @@ fastify.get('/unsub', async function (request) {
   const lastArtist = request.headers['x-channel-id'] as string;
   console.log(`client unsubbed. decrementing count of artist ${lastArtist}`);
   try {
-    await unsub(redis, lastArtist);
+    await unsub(redis, prefixChannelName(lastArtist));
   } catch (error) {
     console.log('error', error);
   }
@@ -55,7 +55,7 @@ fastify.get('/unsub', async function (request) {
 fastify.post('/pub', async function (request) {
   const lastArtist = request.headers['x-channel-id'] as string;
   console.log(`client published.incrementing count ${lastArtist}`);
-  const listenerCountResponse = await pub(redis, lastArtist);
+  const listenerCountResponse = await pub(redis, prefixChannelName(lastArtist));
   return listenerCountResponse;
 });
 
@@ -70,3 +70,7 @@ const start = async () => {
 };
 
 start();
+
+function prefixChannelName(artistName: string): string {
+  return `artist:${artistName}`;
+}
