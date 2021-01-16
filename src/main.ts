@@ -1,6 +1,8 @@
 import fastifyInit from 'fastify';
 import fastifyRateLimit from 'fastify-rate-limit';
 import IORedis from 'ioredis';
+import { pub } from './utils/pub';
+import { unsub } from './utils/unsub';
 
 const config: { [key: string]: string | boolean } = {
   logger: false,
@@ -19,6 +21,7 @@ fastify.register(fastifyRateLimit, {
   timeWindow: '1 minute',
 });
 
+console.log(process.env);
 const redis = new IORedis({
   host: process.env.REDIS_HOST,
   port: parseInt(process.env.REDIS_PORT),
@@ -38,15 +41,22 @@ fastify.get('/leaderboard_hour', async function (_, reply) {
   reply.send(leaderboard);
 });
 
-fastify.get('/unsub', async function (request, reply) {
+fastify.get('/unsub', async function (request) {
   const lastArtist = request.headers['x-channel-id'] as string;
   console.log(`client unsubbed. decrementing count of artist ${lastArtist}`);
   try {
-    await unsub(lastArtist);
+    await unsub(redis, lastArtist);
   } catch (error) {
     console.log('error', error);
   }
-  reply.status(200).send('done');
+  return 'OK';
+});
+
+fastify.post('/pub', async function (request) {
+  const lastArtist = request.headers['x-channel-id'] as string;
+  console.log(`client published.incrementing count ${lastArtist}`);
+  const listenerCountResponse = await pub(redis, lastArtist);
+  return listenerCountResponse;
 });
 
 const start = async () => {
@@ -58,36 +68,5 @@ const start = async () => {
     process.exit(1);
   }
 };
+
 start();
-
-async function unsub(artistName: string) {
-  try {
-    const listenerCountResponse = await fetch(
-      `https://${process.env.NCHAN_URL}/pub/${artistName}`,
-      {
-        method: 'GET',
-        headers: {
-          Accept: 'text/json',
-        },
-      },
-    );
-    const count = await listenerCountResponse.json();
-    console.log('count=', count);
-    try {
-      console.log(count.subscribers);
-    } catch (error) {
-      console.log('err', error);
-    }
-
-    const response = await fetch(
-      `https://${process.env.NCHAN_URL}/pub/${artistName}`,
-      {
-        method: 'POST',
-        body: `c=${count.subscribers}`,
-      },
-    );
-    await response.text();
-  } catch (error) {
-    console.log('error is', error);
-  }
-}

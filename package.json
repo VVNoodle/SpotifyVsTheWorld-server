@@ -6,7 +6,7 @@
   "engines": {
     "node": "12.9.1"
   },
-  "engineStrict": true,
+  "engineStrict": false,
   "scripts": {
     "prestart": "npm run build",
     "start": "node build/src/main.js",
@@ -28,7 +28,6 @@
     "fastify": "^3.9.2",
     "fastify-rate-limit": "^5.0.1",
     "ioredis": "^4.17.3",
-    "node-fetch": "^2.6.1",
     "nodemon": "^2.0.6",
     "ts-node": "9.1.1",
     "tslib": "^2.0.3",
