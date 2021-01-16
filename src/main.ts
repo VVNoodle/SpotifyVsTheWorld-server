@@ -37,7 +37,12 @@ fastify.get('/healthcheck', function (_, reply) {
 });
 
 fastify.get('/leaderboard_hour', async function (_, reply) {
-  const leaderboard = await redis.zscan('leaderboard_hour', 0, -1);
+  const leaderboard = await redis.zrange(
+    'leaderboard_hour',
+    0,
+    -1,
+    'WITHSCORES',
+  );
   console.log('leaderboard', leaderboard);
   reply.send(leaderboard);
 });
