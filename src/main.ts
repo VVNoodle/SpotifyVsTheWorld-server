@@ -1,6 +1,7 @@
 import fastifyInit from 'fastify';
 import fastifyRateLimit from 'fastify-rate-limit';
 import IORedis from 'ioredis';
+import { ARTIST_COUNT_HASH } from './constants';
 import { pub } from './utils/pub';
 import { unsub } from './utils/unsub';
 
@@ -72,5 +73,5 @@ const start = async () => {
 start();
 
 function prefixChannelName(artistName: string): string {
-  return `artist:${artistName}`;
+  return `${ARTIST_COUNT_HASH}:${artistName}`;
 }
