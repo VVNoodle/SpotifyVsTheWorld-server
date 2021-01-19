@@ -1,6 +1,6 @@
 import fastifyInit from 'fastify';
 import fastifyRateLimit from 'fastify-rate-limit';
-import IORedis from 'ioredis';
+import { createNodeRedisClient, addNodeRedisCommand } from 'handy-redis';
 import { prefixChannelName } from './utils/prefixChannelName';
 import { pub } from './utils/pub';
 import { unsub } from './utils/unsub';
@@ -15,17 +15,18 @@ if (process.env.HTTP2 === 'yes') {
   config.http2 = true;
 }
 
+// init redis
+addNodeRedisCommand('RG.TRIGGER');
+const redis = createNodeRedisClient({
+  host: process.env.REDIS_HOST,
+  port: parseInt(process.env.REDIS_PORT),
+});
+
 const fastify = fastifyInit(config);
 
 fastify.register(fastifyRateLimit, {
   max: 100,
   timeWindow: '1 minute',
-});
-
-console.log(process.env);
-const redis = new IORedis({
-  host: process.env.REDIS_HOST,
-  port: parseInt(process.env.REDIS_PORT),
 });
 
 fastify.get('/', function (_, reply) {
@@ -47,6 +48,11 @@ fastify.get('/leaderboard_hour', async function (_, reply) {
   reply.send(leaderboard);
 });
 
+fastify.get('/test', async function (_, reply) {
+  const foo = await redis['RG.TRIGGER']('CountVonCount', 'bat', 'bat');
+  reply.send(foo);
+});
+
 fastify.get('/unsub', async function (request) {
   const lastArtist = request.headers['x-channel-id'] as string;
   console.log(`client unsubbed. decrementing count of artist ${lastArtist}`);
@@ -58,7 +64,7 @@ fastify.get('/unsub', async function (request) {
   return 'OK';
 });
 
-fastify.post('/pub', async function (request) {
+fastify.all('/pub', async function (request) {
   const lastArtist = request.headers['x-channel-id'] as string;
   console.log(`client published.incrementing count ${lastArtist}`);
   const listenerCountResponse = await pub(redis, prefixChannelName(lastArtist));

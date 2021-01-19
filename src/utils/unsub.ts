@@ -1,10 +1,10 @@
-import IORedis from 'ioredis';
+import { WrappedNodeRedisClient } from 'handy-redis';
 import fetch from 'node-fetch';
 import { COUNT } from '../constants';
 import { prefixChannelName } from './prefixChannelName';
 
 async function unsub(
-  redis: IORedis.Redis,
+  redis: WrappedNodeRedisClient,
   artistName: string,
 ): Promise<string> {
   try {
