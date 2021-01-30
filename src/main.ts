@@ -1,9 +1,19 @@
-import fastifyInit from 'fastify';
+import { Server, IncomingMessage, ServerResponse } from 'http';
+import fastifyInit, { FastifyReply, FastifyRequest } from 'fastify';
 import fastifyRateLimit from 'fastify-rate-limit';
-import { createNodeRedisClient, addNodeRedisCommand } from 'handy-redis';
-import { prefixChannelName } from './utils/prefixChannelName';
-import { pub } from './utils/pub';
+import fastifyCors from 'fastify-cors';
+import fastifySchedulePlugin from 'fastify-schedule';
+import { RouteGenericInterface } from 'fastify/types/route';
+import { SimpleIntervalJob } from 'toad-scheduler';
+import { pub } from './routes/pub';
 import { unsub } from './utils/unsub';
+import { getRedis } from './utils/redis';
+import {
+  realtimeLeaderboardUpdate,
+  realtimeLeaderboardUpdateJob,
+} from './utils/realtimeLeaderboardUpdate';
+import { getWs } from './utils/getWs';
+import WebSocket from 'ws';
 
 const config: { [key: string]: string | boolean } = {
   logger: false,
@@ -15,12 +25,11 @@ if (process.env.HTTP2 === 'yes') {
   config.http2 = true;
 }
 
+let leaderboardLastHourPages: number;
+let leaderboardAlltimePages: number;
+
 // init redis
-addNodeRedisCommand('RG.TRIGGER');
-const redis = createNodeRedisClient({
-  host: process.env.REDIS_HOST,
-  port: parseInt(process.env.REDIS_PORT),
-});
+const redis = getRedis();
 
 const fastify = fastifyInit(config);
 
@@ -28,6 +37,40 @@ fastify.register(fastifyRateLimit, {
   max: 100,
   timeWindow: '1 minute',
 });
+
+fastify.register(fastifyCors, {
+  // put your options here
+  // origin: '*',
+  origin: [
+    'https://www.spotifyvstheworld.com',
+    'https://spotifyvstheworld.com',
+    'https://app.spotifyvstheworld.com',
+    'http://app.spotifyvstheworld.com',
+    'https://www.app.spotifyvstheworld.com',
+    'https://www.nchan.spotifyvstheworld.com',
+    'https://nchan.spotifyvstheworld.com',
+  ],
+});
+
+fastify.register(fastifySchedulePlugin);
+
+let ws: WebSocket = getWs();
+
+ws.onopen = () => {
+  console.log('opened websocket connection');
+  realtimeLeaderboardUpdate();
+  const job = new SimpleIntervalJob(
+    { seconds: 20 },
+    realtimeLeaderboardUpdateJob,
+  );
+  fastify.scheduler.addSimpleIntervalJob(job);
+};
+
+ws.onerror = () => {
+  setTimeout(() => {
+    ws = getWs();
+  }, 10000);
+};
 
 fastify.get('/', function (_, reply) {
   reply.send({ hello: 'world' });
@@ -37,20 +80,74 @@ fastify.get('/healthcheck', function (_, reply) {
   reply.send('ok');
 });
 
-fastify.get('/leaderboard_hour', async function (_, reply) {
-  const leaderboard = await redis.zrange(
-    'leaderboard_hour',
-    0,
-    -1,
-    'WITHSCORES',
+function validateInterval(
+  request: FastifyRequest<RouteGenericInterface, Server, IncomingMessage>,
+  reply: FastifyReply<
+    Server,
+    IncomingMessage,
+    ServerResponse,
+    RouteGenericInterface,
+    unknown
+  >,
+) {
+  const interval: string = request.params['interval']
+    ? request.params['interval']
+    : 'alltime';
+  let zsetName = '';
+  if (interval === 'alltime') {
+    zsetName = 'leaderboard_alltime';
+  } else if (interval === 'last6Hours') {
+    zsetName = 'leaderboard_hour';
+  } else if (interval === 'realitme') {
+    zsetName = 'realtime';
+  } else {
+    reply.status(403).send('interval should either be alltime or last6Hours');
+  }
+  return zsetName;
+}
+
+fastify.get('/leaderboard/page_total', async function () {
+  const [
+    leaderboardLastHourCount,
+    leaderboardAlltimeCount,
+  ] = await redis
+    .multi()
+    .zcard('leaderboard_hour')
+    .zcard('leaderboard_alltime')
+    .exec();
+
+  leaderboardLastHourPages = Math.ceil(
+    (leaderboardLastHourCount as number) / 20,
   );
-  console.log('leaderboard', leaderboard);
-  reply.send(leaderboard);
+  leaderboardAlltimePages = Math.ceil((leaderboardAlltimeCount as number) / 20);
+  return {
+    alltime: leaderboardAlltimePages,
+    hour: leaderboardLastHourPages,
+  };
 });
 
-fastify.get('/test', async function (_, reply) {
-  const foo = await redis['RG.TRIGGER']('CountVonCount', 'bat', 'bat');
-  reply.send(foo);
+fastify.get('/leaderboard/:interval/:page', async function (request, reply) {
+  const zsetName = validateInterval(request, reply);
+  const pageNumber: number = request.params['page']
+    ? parseInt(request.params['page'])
+    : 0;
+
+  let pageTotal = 0;
+  if (zsetName == 'leaderboard_alltime') {
+    pageTotal = leaderboardAlltimePages;
+  } else if (zsetName == 'leaderboard_hour') {
+    pageTotal = leaderboardLastHourPages;
+  }
+  if (pageNumber > pageTotal - 1) {
+    reply.status(403).send('page number requested is too high');
+  }
+  const leaderboard = await redis.zrevrange(
+    zsetName,
+    pageNumber * 20,
+    pageNumber * 20 + 19,
+    'WITHSCORES',
+  );
+  reply.send(leaderboard);
 });
 
 fastify.get('/unsub', async function (request) {
@@ -65,13 +162,23 @@ fastify.get('/unsub', async function (request) {
 });
 
 fastify.all('/pub', async function (request) {
-  const lastArtist = request.headers['x-channel-id'] as string;
-  console.log(`client published.incrementing count ${lastArtist}`);
-  const listenerCountResponse = await pub(redis, prefixChannelName(lastArtist));
-  return listenerCountResponse;
+  return pub(request, redis);
 });
 
 const start = async () => {
+  const [
+    leaderboardLastHourCount,
+    leaderboardAlltimeCount,
+  ] = await redis
+    .multi()
+    .zcard('leaderboard_hour')
+    .zcard('leaderboard_alltime')
+    .exec();
+
+  leaderboardLastHourPages = Math.ceil(
+    (leaderboardLastHourCount as number) / 20,
+  );
+  leaderboardAlltimePages = Math.ceil((leaderboardAlltimeCount as number) / 20);
   try {
     console.log(`Listening to fastly server in port ${process.env.PORT}`);
     await fastify.listen(process.env.PORT);

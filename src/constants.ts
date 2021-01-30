@@ -1,2 +1,2 @@
 export const ARTIST_COUNT_HASH = 'artist';
-export const COUNT = 'count';
+export const LEADERBOARD_REALTIME = 'leaderboard_realtime';
