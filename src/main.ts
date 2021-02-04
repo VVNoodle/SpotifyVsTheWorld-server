@@ -56,9 +56,9 @@ fastify.register(fastifySchedulePlugin);
 
 let ws: WebSocket = getWs();
 
-ws.onopen = () => {
+ws.onopen = async () => {
   console.log('opened websocket connection');
-  realtimeLeaderboardUpdate();
+  await realtimeLeaderboardUpdate();
   const job = new SimpleIntervalJob(
     { seconds: 20 },
     realtimeLeaderboardUpdateJob,
@@ -147,11 +147,20 @@ fastify.get('/leaderboard/:interval/:page', async function (request, reply) {
     pageNumber * 20 + 19,
     'WITHSCORES',
   );
-  reply.send(leaderboard);
+  const artists = leaderboard.filter((_, index) => {
+    return index % 2 == 0;
+  });
+  const artistMetadata = await redis.hmget('artist_metadata', ...artists);
+  const message = {
+    artistMetadata,
+    leaderboard,
+  };
+  reply.send(JSON.stringify(message));
 });
 
 fastify.get('/unsub', async function (request) {
-  const lastArtist = request.headers['x-channel-id'] as string;
+  let lastArtist = request.headers['x-channel-id'] as string;
+  lastArtist = decodeURI(lastArtist);
   console.log(`client unsubbed. decrementing count of artist ${lastArtist}`);
   try {
     await unsub(redis, lastArtist);

@@ -3,7 +3,6 @@ import fetch from 'node-fetch';
 import { getRedis } from './redis';
 import { getWs } from './getWs';
 
-let currentData = [];
 export async function realtimeLeaderboardUpdate(): Promise<void> {
   try {
     const ws = getWs();
@@ -27,8 +26,15 @@ export async function realtimeLeaderboardUpdate(): Promise<void> {
       );
       console.log('sending...');
       console.log(leaderboard);
-      currentData = leaderboard;
-      ws.send(leaderboard.toString());
+      const artists = leaderboard.filter((_, index) => {
+        return index % 2 == 0;
+      });
+      const artistMetadata = await redis.hmget('artist_metadata', ...artists);
+      const message = {
+        artistMetadata,
+        leaderboard,
+      };
+      ws.send(JSON.stringify(message));
     }
   } catch (error) {
     console.log(error.message);

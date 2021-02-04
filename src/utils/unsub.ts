@@ -1,17 +1,18 @@
 import { WrappedNodeRedisClient } from 'handy-redis';
 import fetch from 'node-fetch';
-import { ARTIST_COUNT_HASH, LEADERBOARD_REALTIME } from '../constants';
+import { LEADERBOARD_REALTIME } from '../constants';
 
 async function unsub(
   redis: WrappedNodeRedisClient,
   artistName: string,
 ): Promise<string> {
   try {
-    const listenerCount = await redis.hincrby(
-      ARTIST_COUNT_HASH,
-      artistName,
+    const listenerCountBulkString = await redis.zincrby(
+      'leaderboard_realtime',
       -1,
+      artistName,
     );
+    const listenerCount = parseInt(listenerCountBulkString.split('\r\n')[1]);
     await redis.zadd(LEADERBOARD_REALTIME, [listenerCount, artistName]);
     const listenerCountResponse = `c=${listenerCount}`;
     console.log(`unsub value: ${listenerCountResponse}`);
